@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simon 的專屬點名系統</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="apple-touch-icon" href="你的圖片網址">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        :root {
+            --primary: #4f46e5; --primary-hover: #4338ca;
+            --bg-color: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937;
+            --present: #dcfce7; --present-text: #166534;
+            --absent: #fee2e2; --absent-text: #991b1b;
+            --late: #fef08a; --late-text: #854d0e;
+            --excused: #e5e7eb; --excused-text: #374151;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-main); padding: 15px; margin: 0; }
+        .container { max-width: 600px; margin: 0 auto; background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        
+        /* 全新：個人化標題與圖示區塊 */
+        .app-header { text-align: center; margin-bottom: 20px; }
+        .app-logo { width: 85px; height: 85px; border-radius: 20px; object-fit: cover; margin-bottom: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); border: 2px solid white; }
+        h2 { color: var(--primary); margin: 0; font-size: 22px; font-weight: 800; }
+        
+        .tabs { display: flex; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; overflow-x: auto; white-space: nowrap; }
+        .tab-btn { flex: 1; padding: 12px 10px; text-align: center; cursor: pointer; background: none; border: none; font-size: 15px; font-weight: bold; color: #6b7280; transition: 0.3s; }
+        .tab-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); margin-bottom: -2px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+        input[type="date"], input[type="text"], select { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; box-sizing: border-box; outline: none; }
+        input[type="date"]:focus, input[type="text"]:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2); }
+        
+        button.primary-btn { width: 100%; padding: 14px; background-color: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: 0.2s; }
+        button.primary-btn:hover { background-color: var(--primary-hover); }
+        button.primary-btn:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        
+        button.secondary-btn { width: 100%; padding: 10px; background-color: #e5e7eb; color: #374151; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: bold; margin-bottom: 15px; transition: 0.2s; }
+        button.secondary-btn:hover { background-color: #d1d5db; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;}
+        th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { color: #6b7280; font-weight: 600; font-size: 13px; background: #f9fafb; }
+        
+        .status-options { display: flex; gap: 8px; flex-wrap: wrap; }
+        .status-options label { margin: 0; cursor: pointer; padding: 6px 10px; border-radius: 6px; font-size: 14px; background: #f3f4f6; color: #4b5563; border: 1px solid transparent; transition: 0.2s; font-weight: normal; }
+        .status-options input[type="radio"] { display: none; }
+        .status-options input:checked + label { font-weight: bold; }
+        .status-options input[value="出席"]:checked + label { background: var(--present); color: var(--present-text); border-color: #bbf7d0; }
+        .status-options input[value="缺席"]:checked + label { background: var(--absent); color: var(--absent-text); border-color: #fecaca; }
+        .status-options input[value="遲到"]:checked + label { background: var(--late); color: var(--late-text); border-color: #fef08a; }
+        .status-options input[value="豁免"]:checked + label { background: var(--excused); color: var(--excused-text); border-color: #d1d5db; }
+        .status-options input[name="statsRange"]:checked + label { background: var(--primary); color: white; border-color: var(--primary-hover); }
+
+        .badge { padding: 4px 8px; border-radius: 9999px; font-size: 12px; font-weight: bold; display: inline-block; text-align: center;}
+        .badge.出席 { background: var(--present); color: var(--present-text); }
+        .badge.缺席 { background: var(--absent); color: var(--absent-text); }
+        .badge.遲到 { background: var(--late); color: var(--late-text); }
+        .badge.豁免 { background: var(--excused); color: var(--excused-text); }
+
+        .message { margin-top: 15px; text-align: center; font-weight: bold; font-size: 14px; min-height: 20px;}
+        .loading { text-align: center; color: var(--primary); font-weight: bold; padding: 20px 0; }
+        
+        .class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; margin-top: 15px; }
+        .class-card { border: 2px solid #e5e7eb; border-radius: 10px; padding: 15px; text-align: center; cursor: pointer; transition: 0.2s; background: white; }
+        .class-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .class-card h3 { margin: 0 0 5px 0; font-size: 20px; color: var(--text-main); }
+        .class-card .status { font-size: 13px; font-weight: bold; padding: 4px 0; border-radius: 6px; }
+        .class-card.done { border-color: #34d399; }
+        .class-card.done .status { background: #dcfce7; color: #166534; }
+        .class-card.pending { border-color: #f87171; }
+        .class-card.pending .status { background: #fee2e2; color: #991b1b; }
+
+        .stats-dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
+        .stat-card { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .stat-card.absent { border-top: 5px solid #ef4444; }
+        .stat-card.late { border-top: 5px solid #eab308; }
+        .stat-title { color: #6b7280; font-size: 14px; font-weight: bold; }
+        .stat-num { font-size: 36px; font-weight: 900; margin: 5px 0; }
+        .stat-card.absent .stat-num { color: #991b1b; }
+        .stat-card.late .stat-num { color: #854d0e; }
+        .stats-section-title { font-size: 16px; color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 5px; margin-top: 25px; margin-bottom: 10px; }
+
+        /* 列印 PDF 排版設定 */
+        @media print {
+            body { background-color: white; padding: 0; color: black; }
+            .container { max-width: 100%; box-shadow: none; border: none; padding: 0; margin: 0; }
+            .tabs, .form-group, button, #loadingMsg, .message, #customDateContainer { display: none !important; }
+            .tab-content { display: none !important; }
+            #statsTab { display: block !important; }
+            #statsResultArea { display: block !important; }
+            .app-header h2 { color: black; margin-bottom: 20px; text-align: left; }
+            .stats-section-title { color: black; border-bottom: 2px solid black; }
+            .stat-card { box-shadow: none; border: 1px solid #000; break-inside: avoid; }
+            table { border: 1px solid #000; break-inside: auto; }
+            tr { break-inside: avoid; page-break-after: auto; }
+            th, td { border: 1px solid #ddd; }
+            .badge { border: 1px solid #ccc; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="app-header">
+        <img src="你的圖片網址" alt="Simon App Logo" class="app-logo" onerror="this.style.display='none'">
+        <h2>🎒 Simon 的校園點名系統</h2>
+    </div>
+    
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('attendanceTab')">📝 點名</button>
+        <button class="tab-btn" onclick="switchTab('recordsTab')">📊 紀錄</button>
+        <button class="tab-btn" onclick="switchTab('statsTab')">📈 統計報告</button>
+    </div>
+
+    <div id="loadingMsg" class="loading">正在連線載入資料庫...</div>
+
+    <div id="attendanceTab" class="tab-content active" style="display: none;">
+        
+        <div id="attendanceConfig">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>📅 日期</label>
+                    <input type="date" id="date" required onchange="checkAttendanceStatus()">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>⏰ 時段</label>
+                    <select id="timeSlot" onchange="checkAttendanceStatus()">
+                        <option value="上午">上午</option>
+                        <option value="下午">下午</option>
+                        <option value="全日">全日/其他</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>📍 地點/備註</label>
+                    <input type="text" id="location" list="pastLocations" placeholder="預設: 一般點名" onchange="checkAttendanceStatus()">
+                    <datalist id="pastLocations"></datalist>
+                </div>
+            </div>
+            <div id="statusLoadingMsg" style="font-size: 12px; color: #6b7280; text-align: right; margin-bottom: 15px; height: 16px;"></div>
+        </div>
+
+        <div id="classOverviewSection">
+            <h3 style="font-size: 16px; margin: 0; color: #374151;">🏷️ 請選擇班級進行點名：</h3>
+            <div id="classGrid" class="class-grid"></div>
+        </div>
+
+        <div id="singleClassSection" style="display: none;">
+            <button class="secondary-btn" onclick="backToOverview()">⬅️ 返回班級總覽</button>
+            <h3 id="currentClassTitle" style="text-align: center; color: var(--primary); margin-top: 0;"></h3>
+            <form id="attendanceForm">
+                <input type="hidden" id="selectedClassHidden">
+                <div id="studentListContainer"></div>
+                <button type="submit" id="submitBtn" class="primary-btn" style="margin-top: 20px;">送出本班點名紀錄</button>
+            </form>
+        </div>
+        
+        <div id="message1" class="message"></div>
+    </div>
+
+    <div id="recordsTab" class="tab-content">
+        <div class="form-group">
+            <label>🔍 查詢日期</label>
+            <input type="date" id="searchDate" required>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>🏷️ 班別</label>
+                <select id="searchClass"><option value="">- 所有班別 -</option></select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>📍 地點</label>
+                <select id="searchLocation"><option value="">- 所有地點 -</option></select>
+            </div>
+        </div>
+        <button onclick="fetchRecords()" id="searchBtn" class="primary-btn">查詢該日紀錄</button>
+        <div id="recordsContainer"></div>
+        <div id="message2" class="message"></div>
+    </div>
+
+    <div id="statsTab" class="tab-content">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>📅 統計範圍</label>
+                <div class="status-options">
+                    <input type="radio" id="range_today" name="statsRange" value="today" onchange="toggleDateRange()">
+                    <label for="range_today">今天</label>
+                    <input type="radio" id="range_month" name="statsRange" value="month" checked onchange="toggleDateRange()">
+                    <label for="range_month">本月</label>
+                    <input type="radio" id="range_custom" name="statsRange" value="custom" onchange="toggleDateRange()">
+                    <label for="range_custom">自訂</label>
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label>🏷️ 篩選班別 (可選)</label>
+                <select id="statClassSelect"><option value="">- 顯示全校資料 -</option></select>
+            </div>
+        </div>
+        
+        <div id="customDateContainer" style="display:none; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <div class="form-group" style="margin-bottom: 0;"><label>開始</label><input type="date" id="statStartDate"></div>
+            <div class="form-group" style="margin-bottom: 0;"><label>結束</label><input type="date" id="statEndDate"></div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button onclick="fetchStats()" id="statBtn" class="primary-btn">產生綜合統計報告</button>
+            <button onclick="window.print()" id="printBtn" class="secondary-btn" style="display:none; width: auto; margin-bottom: 0; background: #10b981; color: white;">🖨️ 另存 PDF</button>
+        </div>
+        
+        <div id="statsResultArea" style="display: none;">
+            <h2 id="printReportTitle" style="display: none; text-align: center; color: black; font-size: 24px;">缺席與遲到統計報告</h2>
+            <p id="printReportMeta" style="display: none; text-align: center; color: #666; font-size: 14px; margin-bottom: 20px;"></p>
+
+            <h3 class="stats-section-title">📊 1. 總覽數據</h3>
+            <div class="stats-dashboard">
+                <div class="stat-card absent"><div class="stat-title">缺席總人次</div><div class="stat-num" id="totalAbsent">0</div></div>
+                <div class="stat-card late"><div class="stat-title">遲到總人次</div><div class="stat-num" id="totalLate">0</div></div>
+            </div>
+
+            <h3 class="stats-section-title">🏷️ 2. 各班違規統計</h3>
+            <div id="classStatsContainer" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px;"></div>
+
+            <h3 class="stats-section-title">👤 3. 學生違規排行榜</h3>
+            <div id="studentStatsContainer" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px;"></div>
+
+            <h3 class="stats-section-title">📝 4. 原始紀錄明細</h3>
+            <div id="statsListContainer" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px;"></div>
+        </div>
+        <div id="message3" class="message"></div>
+    </div>
+</div>
+
+<script>
+    // 【重要】請替換成你最新的 Google Apps Script 部署網址
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbyh0IsvTdJyPns_Eduq56wtDW2vGWstFwo29KINLM3WNfMXr4HjA02r-_vqBl9UP_DNvQ/exec'; 
+    let allStudents = []; 
+    let uniqueClasses = [];
+
+    function formatDate(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    const todayObj = new Date();
+    document.getElementById('date').value = formatDate(todayObj);
+    document.getElementById('searchDate').value = formatDate(todayObj);
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(tabId).style.display = 'block';
+        event.currentTarget.classList.add('active');
+        
+        if(tabId === 'attendanceTab') {
+            backToOverview(); 
+            checkAttendanceStatus(); 
+        }
+    }
+
+    window.onload = function() {
+        fetch(scriptURL)
+            .then(response => response.json())
+            .then(data => {
+                allStudents = data.students; 
+                uniqueClasses = [...new Set(allStudents.map(s => s.className))];
+                
+                const selects = [document.getElementById('searchClass'), document.getElementById('statClassSelect')];
+                uniqueClasses.forEach(c => {
+                    selects.forEach(sel => {
+                        let opt = document.createElement('option'); opt.value = c; opt.text = c; sel.appendChild(opt);
+                    });
+                });
+
+                if (data.locations && data.locations.length > 0) {
+                    const searchLoc = document.getElementById('searchLocation');
+                    const pastLoc = document.getElementById('pastLocations');
+                    const cleanLocs = [...new Set(data.locations.map(l => l.replace(/ \((上午|下午|全日)\)/g, '').trim()))];
+                    cleanLocs.forEach(loc => {
+                        if(loc) {
+                            let o1 = document.createElement('option'); o1.value = loc; o1.text = loc; searchLoc.appendChild(o1);
+                            let o2 = document.createElement('option'); o2.value = loc; pastLoc.appendChild(o2);
+                        }
+                    });
+                }
+                
+                document.getElementById('loadingMsg').style.display = 'none';
+                document.getElementById('attendanceTab').style.display = 'block';
+                toggleDateRange();
+                checkAttendanceStatus(); 
+            })
+            .catch(error => { document.getElementById('loadingMsg').innerText = "❌ 載入失敗，請檢查網址或權限設定。"; });
+    };
+
+    function checkAttendanceStatus() {
+        const d = document.getElementById('date').value;
+        const locInput = document.getElementById('location').value.trim() || '一般點名';
+        const timeSlot = document.getElementById('timeSlot').value;
+        const combinedLocation = `${locInput} (${timeSlot})`;
+
+        const msgBox = document.getElementById('statusLoadingMsg');
+        const grid = document.getElementById('classGrid');
+        
+        if(uniqueClasses.length === 0) return;
+        
+        msgBox.innerText = "🔄 正在同步各班狀態...";
+        grid.innerHTML = ""; 
+
+        uniqueClasses.forEach(cls => {
+            grid.innerHTML += `
+                <div class="class-card pending" id="card_${cls}" onclick="openClass('${cls}')">
+                    <h3>${cls} 班</h3>
+                    <div class="status" id="status_${cls}">⏳ 未點名</div>
+                </div>`;
+        });
+
+        fetch(`${scriptURL}?action=getRecords&date=${d}`)
+            .then(res => res.json())
+            .then(data => {
+                msgBox.innerText = "✅ 狀態已更新";
+                setTimeout(() => msgBox.innerText = "", 2000);
+                
+                const submittedClasses = new Set(data.filter(r => r.location === combinedLocation).map(r => r.className));
+                
+                submittedClasses.forEach(cls => {
+                    const card = document.getElementById(`card_${cls}`);
+                    const statusText = document.getElementById(`status_${cls}`);
+                    if(card) {
+                        card.className = "class-card done";
+                        statusText.innerText = "✅ 已完成";
+                    }
+                });
+            })
+            .catch(err => { msgBox.innerText = "⚠️ 狀態同步失敗"; });
+    }
+
+    function openClass(className) {
+        document.getElementById('classOverviewSection').style.display = 'none';
+        document.getElementById('singleClassSection').style.display = 'block';
+        document.getElementById('currentClassTitle').innerText = `📋 正在點名：${className} 班`;
+        document.getElementById('selectedClassHidden').value = className;
+        document.getElementById('message1').innerText = "";
+
+        const classStudents = allStudents.filter(s => s.className === className);
+        let html = `<table><thead><tr><th>學號/姓名</th><th>狀態</th></tr></thead><tbody>`;
+        classStudents.forEach(student => {
+            html += `<tr>
+                <td><div style="font-weight:600; color:#374151;">${student.id}</div><div style="font-size:12px; color:#6b7280;">${student.name}</div></td>
+                <td>
+                    <div class="status-options">
+                        <input type="radio" id="p_${student.id}" name="st_${student.id}" value="出席" checked><label for="p_${student.id}">出席</label>
+                        <input type="radio" id="l_${student.id}" name="st_${student.id}" value="遲到"><label for="l_${student.id}">遲到</label>
+                        <input type="radio" id="a_${student.id}" name="st_${student.id}" value="缺席"><label for="a_${student.id}">缺席</label>
+                        <input type="radio" id="e_${student.id}" name="st_${student.id}" value="豁免"><label for="e_${student.id}">豁免</label>
+                    </div>
+                </td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+        document.getElementById('studentListContainer').innerHTML = html;
+    }
+
+    function backToOverview() {
+        document.getElementById('singleClassSection').style.display = 'none';
+        document.getElementById('classOverviewSection').style.display = 'block';
+        document.getElementById('message1').innerText = "";
+    }
+
+    document.getElementById('attendanceForm').addEventListener('submit', e => {
+        e.preventDefault(); 
+        const selectedClass = document.getElementById('selectedClassHidden').value;
+        const selectedDate = document.getElementById('date').value;
+        const inputLocation = document.getElementById('location').value.trim() || "一般點名"; 
+        const timeSlot = document.getElementById('timeSlot').value;
+        const combinedLocation = `${inputLocation} (${timeSlot})`;
+
+        const submitBtn = document.getElementById('submitBtn');
+        const msg = document.getElementById('message1');
+        
+        let records = allStudents.filter(s => s.className === selectedClass).map(student => ({
+            id: student.id, name: student.name,
+            status: document.querySelector(`input[name="st_${student.id}"]:checked`).value
+        }));
+
+        let formData = new FormData();
+        formData.append('payload', JSON.stringify({ date: selectedDate, location: combinedLocation, className: selectedClass, records: records }));
+
+        submitBtn.disabled = true; submitBtn.innerText = "🚀 傳送資料中..."; msg.innerText = "";
+
+        fetch(scriptURL, { method: 'POST', body: formData })
+            .then(response => {
+                msg.innerHTML = `<span style="color:#166534;">✅ ${selectedClass}班 紀錄已成功送出！返回總覽...</span>`;
+                const card = document.getElementById(`card_${selectedClass}`);
+                if(card) { card.className = "class-card done"; document.getElementById(`status_${selectedClass}`).innerText = "✅ 已完成"; }
+                
+                setTimeout(() => {
+                    backToOverview();
+                    submitBtn.disabled = false; submitBtn.innerText = "送出本班點名紀錄";
+                }, 1500);
+            })
+            .catch(err => {
+                msg.innerHTML = `<span style="color:#991b1b;">❌ 傳送失敗，請重試。</span>`;
+                submitBtn.disabled = false; submitBtn.innerText = "送出本班點名紀錄";
+            });
+    });
+
+    function fetchRecords() {
+        const d = document.getElementById('searchDate').value;
+        const c = document.getElementById('searchClass').value; 
+        const l = document.getElementById('searchLocation').value; 
+        const btn = document.getElementById('searchBtn');
+        const container = document.getElementById('recordsContainer');
+        const msg = document.getElementById('message2');
+        if(!d) return;
+
+        btn.disabled = true; btn.innerText = "🔍 查詢中..."; container.innerHTML = ''; msg.innerText = '';
+
+        fetch(`${scriptURL}?action=getRecords&date=${d}`)
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false; btn.innerText = "查詢該日紀錄";
+                let fd = data;
+                if(c) fd = fd.filter(r => r.className === c);
+                if(l) fd = fd.filter(r => r.location.includes(l));
+                if (fd.length === 0) { msg.innerHTML = `<span style="color:#6b7280;">📭 找不到符合的紀錄。</span>`; return; }
+
+                const grouped = fd.reduce((acc, curr) => {
+                    if(!acc[curr.location]) acc[curr.location] = {};
+                    if(!acc[curr.location][curr.className]) acc[curr.location][curr.className] = [];
+                    acc[curr.location][curr.className].push(curr);
+                    return acc;
+                }, {});
+
+                let html = '';
+                for (const loc in grouped) {
+                    html += `<div style="margin-top: 15px; border: 2px solid var(--primary); border-radius: 8px; padding: 10px; background: white;">
+                                <h4 style="margin: 0 0 10px 0; background: var(--primary); color: white; padding: 8px; border-radius: 4px;">📍 ${loc}</h4>`;
+                    for (const cls in grouped[loc]) {
+                        html += `<div style="margin-bottom: 10px;"><strong>🏷️ ${cls} 班</strong><table><tbody>`;
+                        grouped[loc][cls].forEach(rec => { html += `<tr><td width="50%">${rec.id} ${rec.name}</td><td><span class="badge ${rec.status}">${rec.status}</span></td></tr>`; });
+                        html += `</tbody></table></div>`;
+                    }
+                    html += `</div>`;
+                }
+                container.innerHTML = html;
+            })
+            .catch(err => { btn.disabled = false; btn.innerText = "查詢該日紀錄"; msg.innerText = "❌ 查詢失敗"; });
+    }
+
+    function toggleDateRange() {
+        const range = document.querySelector('input[name="statsRange"]:checked').value;
+        const customDiv = document.getElementById('customDateContainer');
+        const td = new Date();
+        if (range === 'custom') {
+            customDiv.style.display = 'grid';
+        } else {
+            customDiv.style.display = 'none';
+            if (range === 'today') {
+                document.getElementById('statStartDate').value = formatDate(td);
+                document.getElementById('statEndDate').value = formatDate(td);
+            } else if (range === 'month') {
+                document.getElementById('statStartDate').value = formatDate(new Date(td.getFullYear(), td.getMonth(), 1));
+                document.getElementById('statEndDate').value = formatDate(new Date(td.getFullYear(), td.getMonth() + 1, 0));
+            }
+        }
+    }
+
+    function fetchStats() {
+        const sDate = document.getElementById('statStartDate').value;
+        const eDate = document.getElementById('statEndDate').value;
+        const sClass = document.getElementById('statClassSelect').value; 
+        
+        const btn = document.getElementById('statBtn');
+        const printBtn = document.getElementById('printBtn');
+        const resultArea = document.getElementById('statsResultArea');
+        const msg = document.getElementById('message3');
+
+        if(!sDate || !eDate) { msg.innerText = "⚠️ 請選擇完整日期"; return; }
+        if(sDate > eDate) { msg.innerText = "⚠️ 開始日期不能大於結束日期"; return; }
+
+        btn.disabled = true; btn.innerText = "📊 運算大數據中...";
+        msg.innerText = ''; resultArea.style.display = 'none'; printBtn.style.display = 'none';
+
+        fetch(`${scriptURL}?action=getStats&startDate=${sDate}&endDate=${eDate}`)
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false; btn.innerText = "產生綜合統計報告";
+                
+                let filteredData = data;
+                if (sClass !== "") filteredData = filteredData.filter(r => r.className === sClass);
+                
+                if(filteredData.length === 0) {
+                    let classText = sClass ? ` (${sClass}班)` : "";
+                    msg.innerHTML = `<span style="color:#6b7280;">📭 該時段內沒有任何缺席或遲到紀錄${classText}。</span>`;
+                    return;
+                }
+
+                let totalAbsent = 0; let totalLate = 0;
+                let classStats = {};    
+                let studentStats = {};  
+
+                filteredData.forEach(r => {
+                    const isAbsent = (r.status === '缺席');
+                    const isLate = (r.status === '遲到');
+                    
+                    if(isAbsent) totalAbsent++;
+                    if(isLate) totalLate++;
+
+                    if(!classStats[r.className]) classStats[r.className] = { absent: 0, late: 0 };
+                    if(isAbsent) classStats[r.className].absent++;
+                    if(isLate) classStats[r.className].late++;
+
+                    let studentKey = `${r.className}_${r.id}_${r.name}`;
+                    if(!studentStats[studentKey]) studentStats[studentKey] = { class: r.className, id: r.id, name: r.name, absent: 0, late: 0 };
+                    if(isAbsent) studentStats[studentKey].absent++;
+                    if(isLate) studentStats[studentKey].late++;
+                });
+
+                document.getElementById('totalAbsent').innerText = totalAbsent;
+                document.getElementById('totalLate').innerText = totalLate;
+
+                let classHtml = `<table><thead><tr><th>班別</th><th>缺席次數</th><th>遲到次數</th></tr></thead><tbody>`;
+                for(let cls in classStats) {
+                    classHtml += `<tr><td><strong>${cls}</strong></td><td style="color:#991b1b;">${classStats[cls].absent}</td><td style="color:#854d0e;">${classStats[cls].late}</td></tr>`;
+                }
+                classHtml += `</tbody></table>`;
+                document.getElementById('classStatsContainer').innerHTML = classHtml;
+
+                let stuArray = Object.values(studentStats).sort((a, b) => (b.absent + b.late) - (a.absent + a.late));
+                let stuHtml = `<table><thead><tr><th>班別/姓名</th><th>缺席</th><th>遲到</th></tr></thead><tbody>`;
+                stuArray.forEach(stu => {
+                    stuHtml += `<tr><td><div style="font-size:12px; color:#6b7280;">${stu.class}</div><strong>${stu.name}</strong></td><td style="color:#991b1b;">${stu.absent}</td><td style="color:#854d0e;">${stu.late}</td></tr>`;
+                });
+                stuHtml += `</tbody></table>`;
+                document.getElementById('studentStatsContainer').innerHTML = stuHtml;
+
+                let listHtml = `<table><thead><tr><th>日期/地點</th><th>班別/學生</th><th>狀態</th></tr></thead><tbody>`;
+                filteredData.sort((a, b) => a.date.localeCompare(b.date)); 
+                filteredData.forEach(r => {
+                    listHtml += `<tr><td><div style="font-weight:bold; font-size:12px;">${r.date}</div><div style="font-size:11px; color:#6b7280;">${r.location}</div></td>
+                                <td><div style="font-weight:bold;">${r.className}</div><div style="font-size:12px; color:#374151;">${r.id} ${r.name}</div></td>
+                                <td><span class="badge ${r.status}">${r.status}</span></td></tr>`;
+                });
+                listHtml += `</tbody></table>`;
+                document.getElementById('statsListContainer').innerHTML = listHtml;
+
+                document.getElementById('printReportTitle').style.display = 'block';
+                const metaText = `統計期間：${sDate} 至 ${eDate} | 篩選：${sClass || '全校/全團'} | 列印時間：${new Date().toLocaleString()}`;
+                document.getElementById('printReportMeta').innerText = metaText;
+                document.getElementById('printReportMeta').style.display = 'block';
+
+                resultArea.style.display = 'block';
+                printBtn.style.display = 'block'; 
+            })
+            .catch(err => {
+                btn.disabled = false; btn.innerText = "產生綜合統計報告";
+                msg.innerHTML = `<span style="color:#991b1b;">❌ 擷取失敗，請檢查連線。</span>`;
+            });
+    }
+
+    if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(()=>{}); }); }
+</script>
+</body>
+</html>
